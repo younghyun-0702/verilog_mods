@@ -47,7 +47,8 @@ module uart_rx (
             if (i_b_tick) begin
                 if (rx == 0) next_state = START;
             end
-            START: begin
+            START:
+            if (i_b_tick) begin
                 if (b_tick_reg == 7) begin
                     next_state   = DATA_RX;
                     b_tick_next  = 0;

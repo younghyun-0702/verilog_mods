@@ -3,8 +3,7 @@
 
 module uart_ver2 #(
     parameter CLK_100MHZ = 100_000_000,
-    parameter BAUD_HZ = 9600 * 16,
-    parameter DB_HZ = 100_000
+    parameter BAUD_HZ = 9600 * 16
 ) (
     input        clk,
     input        rst,
@@ -100,30 +99,46 @@ module uart_tx #(
 
 
 
-    //상태 전이 블럭
+    //상태 전이 및 출력 블럭
     always @(*) begin
         next_state = current_state;
         b_tick_cnt_next = b_tick_cnt_reg;
         bit_count_next = bit_count_reg;
+        tx_next = tx_reg;
+        data_next = data_reg;
+        tx_busy_next = tx_busy_reg;
         case (current_state)
-            IDLE: if (tx_start) next_state = START;
-
-            START:
-            if (i_b_tick) begin
-                if (b_tick_cnt_reg == 15) begin
+            IDLE: begin 
+                tx_next = 1'b1;
+                tx_busy_next = 0;
+                if (tx_start) begin
+                    data_next = tx_data;
+                    tx_busy_next = 1;
                     b_tick_cnt_next = 0;
-                    next_state = DATA_TX;
-                end else b_tick_cnt_next = b_tick_cnt_reg + 1;
+                    next_state = START;
+                end 
+            end
+            START: begin
+                tx_next = 1'b0;
+                if(i_b_tick) begin
+                    if (b_tick_cnt_reg == 15) begin
+                        b_tick_cnt_next = 0;
+                        bit_count_next = 0;
+                        next_state = DATA_TX;
+                    end else b_tick_cnt_next = b_tick_cnt_reg + 1;
+                end
             end
             DATA_TX: begin
+                tx_next = data_reg[0];
                 if (i_b_tick) begin
                     if (b_tick_cnt_reg == 15) begin
                         b_tick_cnt_next = 0;
-                        bit_count_next  = bit_count_reg + 1;
                         if (bit_count_reg == 7) begin
                             next_state = STOP;
-                            bit_count_next = 0;
-
+                        end else begin
+                            data_next = {1'b0,data_reg[7:1]};
+                            bit_count_next  = bit_count_reg + 1;
+                            next_state = DATA_TX;
                         end
                     end else begin
                         b_tick_cnt_next = b_tick_cnt_reg + 1;
@@ -132,100 +147,22 @@ module uart_tx #(
                 end
             end
             STOP: begin
+                tx_next = 1'b1;
                 if (i_b_tick) begin
                     if (b_tick_cnt_reg == 15) begin
                         next_state = IDLE;
-                        b_tick_cnt_next = 0;
+                        tx_busy_next = 0;
                     end else b_tick_cnt_next = b_tick_cnt_reg + 1;
                 end
             end
         endcase
     end
 
-    // 출력 블럭
-    always @(*) begin
-        tx_next = tx_reg;
-        data_next = data_reg;
-        tx_busy_next = tx_busy_reg;
-        case (current_state)
-            IDLE: begin
-                tx_busy_next = 0;
-                tx_next = 1'b1;
-            end
-            START: begin
-                tx_next = 1'b0;
-                data_next = tx_data;
-                tx_busy_next = 1;
-            end
-            DATA_TX: tx_next = data_reg[bit_count_reg];
-            STOP: tx_next = 1'b1;
-        endcase
-    end
+    
 
 endmodule
 
-module debouncer #(
-    parameter CLK_100MHZ = 100_000_000,
-    parameter DB_HZ = 100_000
-) (
-    input  clk,
-    input  rst,
-    input  i_btn,
-    output o_btn
-);
 
-    localparam F_COUNT = CLK_100MHZ / DB_HZ;
-    reg [$clog2(F_COUNT)-1:0] r_counter;
-    reg clk_100khz;
-    wire w_debouncer;
-
-    always @(posedge clk, posedge rst) begin
-        if (rst) begin
-            r_counter  <= 0;
-            clk_100khz <= 0;
-        end else begin
-            r_counter <= r_counter + 1;
-            if (r_counter == F_COUNT - 1) begin
-                r_counter  <= 0;
-                clk_100khz <= 1;
-            end else begin
-                clk_100khz <= 0;
-            end
-        end
-
-    end
-
-
-    reg [7 : 0] sync_reg, sync_next;
-
-    always @(posedge clk_100khz, posedge rst) begin
-        if (rst) begin
-            sync_reg <= 0;
-        end else begin
-            sync_reg <= sync_next;
-        end
-
-    end
-
-    always @(*) begin
-        sync_next = {sync_reg[6:0], i_btn};
-    end
-
-    assign w_debouncer = &sync_reg;
-
-    reg edge_reg;
-
-    always @(posedge clk, posedge rst) begin
-        if (rst) begin
-            edge_reg <= 0;
-        end else begin
-            edge_reg <= w_debouncer;
-        end
-    end
-
-    assign o_btn = w_debouncer & (~edge_reg);
-
-endmodule
 
 module baud_tick_gen #(
     parameter CLK_100MHZ = 100_000_000,
