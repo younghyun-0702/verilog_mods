@@ -259,9 +259,7 @@ module uart_tx (
                         if (bit_cnt_reg == 7) begin
                             n_state = STOP;
                         end else begin
-                            data_next = {
-                                1'b0, data_reg[7:1]
-                            };  // b_tick 밑에 있어도 되는데, bit 증가할때 shift 하고 싶어서 여기에 위치
+                            data_next = {1'b0, data_reg[7:1]};  // b_tick 밑에 있어도 되는데, bit 증가할때 shift 하고 싶어서 여기에 위치
                             bit_cnt_next = bit_cnt_reg + 1;
                             n_state = DATA;
                         end

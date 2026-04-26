@@ -15,7 +15,7 @@ module tb_uart_ver2 ();
     ) U_UART (
         .clk(clk),
         .rst(rst),
-        .btnR(btn),
+        .tx_start(btn),
         .tx_data(tx_data),
         .tx(tx)
     );
